@@ -1,4 +1,4 @@
 # eibimet
-Repositorio de minitaller de la I Escuela Iberoamericana de Invierno de Meteorología (EIBIMET)<p>
-Webinar,  Lima, 31 mayo 2021
+Repositorio de la sesión: Influencia del fenómeno El Niño en el caudal de los ríos costeros del Perú <p>
+I Escuela Iberoamericana de Invierno de Meteorología (EIBIMET), webinar,  Lima, 31may21
 
