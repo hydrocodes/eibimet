@@ -1,5 +1,9 @@
 ### Correlacion corrida entre un indice climatico y varias estaciones
 ### https://github.com/hydrocodes
+# Instalar libreria hydRopclim, solo una vez
+library(devtools)
+devtools::install_github ("hydrocodes/hydRopclim")
+# Llamar librerias
 library(hydRopclim)
 library(reshape2)
 library(ggplot2)
