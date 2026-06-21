@@ -1,15 +1,15 @@
 ### Correlacion corrida entre un indice climatico y varias estaciones
 ### https://github.com/hydrocodes
-# Instalar libreria hydRopclim, solo una vez
-library(devtools)
-devtools::install_github ("hydrocodes/hydRopclim")
-# Llamar librerias
+# Instalar paquete hydRopclim, usando paquete remotes, solo una vez
+library(remotes)
+remotes::install_github ("hydrocodes/hydRopclim")
+# Llamar paquetes
 library(hydRopclim)
 library(reshape2)
 library(ggplot2)
 library(wesanderson)
 library(cowplot)
-data <- read.csv("D:/2_Courses/R_Hidrologia/Tutorial_files/climatologie/database.csv")
+data <- read.csv("...climatologie/database.csv")
 index <- data$Index
 variables <- data[ ,3:ncol(data)]
 #ingresar el tamaño de la ventana en años para la correlacion corrida
