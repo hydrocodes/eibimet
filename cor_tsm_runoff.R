@@ -1,90 +1,81 @@
-### Extraccion de la TSM del HadISST (Rayner et al, 2003), corte para un periodo de tiempo y correlacion con una serie de escorrentia
+### Extracción de la TSM del HadISST, corte para un periodo de tiempo y correlación con una serie de escorrentía (2026)
 ### https://github.com/hydrocodes
-# Instalar librerias
-library(sp)
-library(raster) 
-library(ncdf4)
-library(rgdal)
+# Instalar paquetes
+library(terra)
 library(RColorBrewer)
 library(lattice)
-library(latticeExtra)
-library(reshape2)
-library(maps)
-# Configurar la ruta del directorio de trabajo
-setwd("D:/2_Courses/R_Hidrologia/Tutorial_files/climatologie")
-# Leer el shapefile de limites costeros ubicado en la carpeta "data"
-costa <- readOGR(dsn = 'data', layer= 'ne_110m_coastline' )
-# Leer el TSM global y corte para un periodo de tiempo
-nc0 <- brick('HadISST_sst.nc')
-startYear <- 1970   # ingresar el año inicial
-endYear <- 2011     # ingresar el año final
-Date <- substr(names(nc0),2,11) 
-Date <- gsub('\\.', '\\-', Date)
-Date <- as.Date(Date)
-dstart1 <- paste(startYear,'01','16',sep='-')
-dstart <- grep(dstart1, Date)
-dend1 <- paste(endYear,'12','16',sep='-')
-dend <- grep(dend1, Date)
-nc1 <- subset(nc0, dstart:dend)
-# Guardando el archivo nc cortado
-writeRaster(nc1,"output.nc", overwrite = TRUE, format="CDF",
-            varname="sst", varunit="degC", 
-            longname="SST -- raster stack to netCDF, monthly average", 
-            xname="Longitude",   yname="Latitude", zname='Time', zunit='months')
-# Leer el archivo nc cortado
-nc <- nc_open('output.nc', write = TRUE)
-lat <- ncvar_get(nc,"Latitude") 
-lon <- ncvar_get(nc,"Longitude") 
-sst <- ncvar_get(nc,"sst")
-# Llenado de valores faltantes
-fillvalue <- ncatt_get(nc,"sst","_FillValue")
-sst[sst==fillvalue$value] <- NA
-missvalue <- ncatt_get(nc,"sst","missing_value")
-sst[sst==missvalue$value] <- NA
-sst[sst==-1000] <- NA
-# Configurando fechas
-date_nc <- seq(as.Date(dstart1), as.Date(dend1), by = "months")
-year <- format(as.Date(date_nc, format="%Y-%m-%d"),"%Y")
-# Calculando el promedio mensual TSM
-gmean <- colMeans(sst, na.rm = TRUE, dims=2)
-annmean <- aggregate(gmean,by=list(year),FUN=mean,na.rm=TRUE)
-avsst <- rowMeans(sst,na.rm=FALSE,dims=2)
-grid <- expand.grid(x=lon, y=lat)
-grid$avsst <- as.vector(avsst)
-# Calculando y ploteando el promedio anual TSM
-yrs <- annmean$Group.1 
-nyr <- length(yrs)
-asst <- array(NA,c(dim(lon),dim(lat),nyr)) 
-for (k in 1:nyr) {
-  asst[,,k] <- rowMeans(sst[,,year==yrs[k]],na.rm=FALSE,dims=2)
-}
-grid$an_avsst <- as.vector(rowMeans(asst,na.rm=FALSE,dims=2))
-colors <- rev(brewer.pal(10, "RdYlBu"))
-pal <- colorRampPalette(colors)
-levelplot(an_avsst~x*y, data=grid,col.regions = pal(100),xlab='Longitud',ylab='Latitud',main='TSM promedio anual') + layer(sp.lines(costa))
 
-# Removiendo las medias globales
-gmean <- colMeans(asst, na.rm = TRUE, dims=2)
-for (k in 1:nyr){
-  asst[,,k] <- asst[,,k]-matrix(gmean[k],length(lon),length(lat))
-}
-# Extrayendo los datos de TSM para una coordenada indicada
-lon0 <- -76.5 
+# Ingreso de datos
+setwd(".../climatologie") #carpeta de trabajo
+sst_file <- "HadISST_sst.nc"
+runoff_file <- "runoff.txt"
+coast_file <- "new3_ne_110m_coastline.shp"
+startYear <- 1970
+endYear   <- 2011
+# Coordenada para la extraccion de datos
+lon0 <- -76.5
 lat0 <- -18.5
-sst_ts<-asst[which(lon==lon0),which(lat==lat0),]
-# Ploteando la serie de tiempo 
-plot(yrs,sst_ts,type='l',xlab='Años',ylab='Anomalia TSM',main=paste0('Anomalia TSM Long=', lon0, ',Lat=', lat0))
 
-# lectura de escorrentia y correlacion con la TSM
-runoff <- read.table("runoff.txt")
-cmatrix <- matrix(NA,dim(lon),dim(lat))
-for (i in 1:dim(lon)) {
-  for (j in 1:dim(lat)) {
-    cmatrix[i,j] <- cor(asst[i,j,], runoff)
-  }
+### Procesamiento ###
+costa <- vect(coast_file)
+sst <- rast(sst_file)
+sst[sst == -1000] <- NA
+dates <- time(sst)
+
+if (is.null(dates)) {
+  dates <- as.Date(gsub("\\.", "-", substr(names(sst), 2, 11)))
 }
-grid$corr <- as.vector(cmatrix)
-# indicar el rango de longitud y de latitud de visualizacion
-levelplot(corr~x*y, data=grid , xlim=c(-180,0),ylim=c(-30,20),
-          col.regions = pal(100),xlab='Longitud',ylab='Latitud',main='Correlacion TSM vs escorrentia anual') + 
-  layer(sp.lines(costa)) 
+years <- as.numeric(format(dates, "%Y"))
+idx <- which(years >= startYear & years <= endYear)
+sst <- sst[[idx]]
+dates <- dates[idx]
+years <- years[idx]
+yrs <- sort(unique(years))
+
+# TSM anual
+annual_sst <- tapp(sst, index = years, fun = mean, na.rm = TRUE)
+names(annual_sst) <- yrs
+
+# Mapa TSM anual promedio espacial
+mean_sst <- mean(annual_sst, na.rm = TRUE)
+mean_sst <- terra::rotate(mean_sst) #plot con el O.Pacifico centrado
+colors <- rev(brewer.pal(10,"RdYlBu"))
+pal <- colorRampPalette(colors)
+plot(mean_sst, col = pal(100), main = "Mean Annual SST")
+lines(costa)
+
+# Anomalia con el promedio global
+global_mean <- global(annual_sst, "mean", na.rm = TRUE)[,1]
+annual_anom <- annual_sst
+for(i in seq_len(nlyr(annual_anom))){
+  annual_anom[[i]] <- annual_anom[[i]] - global_mean[i]
+}
+
+# Serie de tiempo de anomalia TSM
+sst_ts <- extract(annual_anom, cbind(lon0, lat0))
+sst_ts <- as.numeric(sst_ts[1,])
+plot(yrs, sst_ts, type = "l", lwd = 2, xlab = "Year", ylab = "SST Anomaly (°C)",
+  main = paste0("SST Anomaly\nLon=", lon0, " Lat=", lat0))
+
+# Leer la serie de escorrentía
+runoff <- scan(runoff_file, quiet = TRUE)
+if(length(runoff) != nlyr(annual_anom)){
+  stop(paste("Runoff series length =", length(runoff), "but SST years =", nlyr(annual_anom)))
+}
+
+# Correlacion TSM y escorrentia
+sst_mat <- values(annual_anom, mat = TRUE)
+corr_fun <- function(x){
+  if(all(is.na(x))) return(NA)
+  if(sd(x, na.rm = TRUE) == 0) return(NA)
+  cor(x, runoff, use = "pairwise.complete.obs")
+}
+corr_values <- apply(sst_mat, 1, corr_fun)
+corr_rast <- rast(annual_anom, nlyrs = 1)
+values(corr_rast) <- corr_values
+corr_rast <- terra::rotate(corr_rast)
+
+# Mapa de correlacion espacial
+plot(corr_rast, col = pal(100), range = c(-1,1), main = paste0("SST vs Runoff Correlation\n",
+    startYear, "-", endYear), xlim=c(130,360), ylim=c(-40,30))
+lines(costa)
